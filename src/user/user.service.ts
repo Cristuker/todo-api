@@ -21,15 +21,24 @@ export class UserService {
     return `This action returns all user`;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async findOne(id: number) {
+    const result = await this.prisma.user.findFirst({
+      where: {
+        id: id,
+      },
+    });
+    return result;
   }
 
   update(id: number, updateUserDto: UpdateUserDto) {
     return `This action updates a #${id} user`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async remove(id: number) {
+    await this.prisma.user.delete({
+      where: {
+        id: id,
+      },
+    });
   }
 }
