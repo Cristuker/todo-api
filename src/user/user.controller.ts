@@ -1,47 +1,84 @@
 import {
   Controller,
-  Get,
   Post,
   Body,
-  Patch,
-  Param,
-  Delete,
-  Res,
   HttpStatus,
-} from '@nestjs/common';
-import { UserService } from './user.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { Response } from 'express';
+  Logger,
+  Res,
+  Get,
+  Param,
+  Patch,
+} from "@nestjs/common";
+import { UserService } from "./user.service";
+import { CreateUserDto } from "./dto/create-user.dto";
+import { Response } from "express";
+import { UpdateUserDto } from "./dto/update-user.dto";
 
-@Controller('user')
+@Controller("user")
 export class UserController {
+  private readonly logger = new Logger();
+
   constructor(private readonly userService: UserService) {}
 
   @Post()
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  async create(
+    @Body() createUserDto: CreateUserDto,
+    @Res() response: Response,
+  ) {
+    try {
+      const emailAlreadyExists = await this.userService.findByEmail(
+        createUserDto.email,
+      );
+
+      if (emailAlreadyExists) {
+        return response.status(HttpStatus.CONFLICT).send();
+      }
+
+      const createdUser = await this.userService.create(createUserDto);
+
+      return response.status(HttpStatus.CREATED).send({
+        data: createdUser,
+      });
+    } catch (error) {
+      this.logger.error("[Post /user]", error);
+      return response.status(HttpStatus.INTERNAL_SERVER_ERROR).send({
+        message: "Erro ao criar usuário",
+      });
+    }
   }
 
-  @Get()
-  findAll() {
-    return this.userService.findAll();
+  @Get("/:id")
+  async getUserById(@Param("id") id: string, @Res() response: Response) {
+    const user = await this.userService.findOne(Number(id));
+    return response.status(HttpStatus.OK).send({
+      data: user,
+    });
   }
 
-  @Get(':id')
-  async findOne(@Res() response: Response, @Param('id') id: string) {
-    const result = await this.userService.findOne(Number(id));
-    return response.status(200).send(result);
-  }
+  @Patch("/:id")
+  async updateUser(
+    @Param("id") id: string,
+    @Res() response: Response,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    if (updateUserDto.email) {
+      const emailAlreadyExists = await this.userService.findByEmail(
+        updateUserDto.email,
+      );
+      if (emailAlreadyExists) {
+        return response
+          .status(HttpStatus.CONFLICT)
+          .send({ message: "Esse e-mail já está em uso" });
+      }
+    }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(+id, updateUserDto);
-  }
+    const updatedUser = await this.userService.update(
+      Number(id),
+      updateUserDto,
+    );
 
-  @Delete(':id')
-  async remove(@Param('id') id: string, @Res() response: Response) {
-    await this.userService.remove(Number(id));
-    return response.status(HttpStatus.NO_CONTENT).send();
+    return response.status(HttpStatus.OK).send({
+      data: updatedUser,
+    });
   }
 }
